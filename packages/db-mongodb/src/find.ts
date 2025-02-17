@@ -1,7 +1,7 @@
 import type { PaginateOptions } from 'mongoose'
 import type { Find } from 'payload'
 
-import { flattenWhereToOperators } from 'payload'
+import { APIError, flattenWhereToOperators } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -15,7 +15,7 @@ import { transform } from './utilities/transform.js'
 export const find: Find = async function find(
   this: MongooseAdapter,
   {
-    collection,
+    collection: collectionSlug,
     joins = {},
     limit = 0,
     locale,
@@ -25,11 +25,22 @@ export const find: Find = async function find(
     req,
     select,
     sort: sortArg,
-    where,
+    where = {},
   },
 ) {
-  const Model = this.collections[collection]
-  const collectionConfig = this.payload.collections[collection].config
+  const Model = this.collections[collectionSlug]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection ${collectionSlug} Mongoose model`)
+  }
+
+  const collection = this.payload.collections[collectionSlug]
+
+  if (!collection) {
+    throw new APIError(`Could not find collection ${collectionSlug}`)
+  }
+
+  const collectionConfig = collection.config
 
   const session = await getSession(this, req)
 
@@ -53,8 +64,8 @@ export const find: Find = async function find(
 
   const query = await buildQuery({
     adapter: this,
-    collectionSlug: collection,
-    fields: this.payload.collections[collection].config.flattenedFields,
+    collectionSlug,
+    fields: collection.config.flattenedFields,
     locale,
     where,
   })
@@ -120,7 +131,7 @@ export const find: Find = async function find(
 
   const aggregate = await buildJoinAggregation({
     adapter: this,
-    collection,
+    collection: collectionSlug,
     collectionConfig,
     joins,
     locale,
@@ -136,7 +147,7 @@ export const find: Find = async function find(
   transform({
     adapter: this,
     data: result.docs,
-    fields: this.payload.collections[collection].config.fields,
+    fields: collection.config.fields,
     operation: 'read',
   })
 

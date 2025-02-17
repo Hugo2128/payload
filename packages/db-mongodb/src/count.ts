@@ -1,7 +1,7 @@
 import type { CountOptions } from 'mongodb'
 import type { Count } from 'payload'
 
-import { flattenWhereToOperators } from 'payload'
+import { APIError, flattenWhereToOperators } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -10,9 +10,14 @@ import { getSession } from './utilities/getSession.js'
 
 export const count: Count = async function count(
   this: MongooseAdapter,
-  { collection, locale, req, where },
+  { collection, locale, req, where = {} },
 ) {
   const Model = this.collections[collection]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection model with the name ${collection}`)
+  }
+
   const options: CountOptions = {
     session: await getSession(this, req),
   }

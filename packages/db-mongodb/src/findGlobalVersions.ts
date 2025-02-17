@@ -1,7 +1,7 @@
 import type { PaginateOptions, QueryOptions } from 'mongoose'
 import type { FindGlobalVersions } from 'payload'
 
-import { buildVersionGlobalFields, flattenWhereToOperators } from 'payload'
+import { APIError, buildVersionGlobalFields, flattenWhereToOperators } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -13,11 +13,25 @@ import { transform } from './utilities/transform.js'
 
 export const findGlobalVersions: FindGlobalVersions = async function findGlobalVersions(
   this: MongooseAdapter,
-  { global, limit, locale, page, pagination, req, select, skip, sort: sortArg, where },
+  { global: slug, limit, locale, page, pagination, req, select, skip, sort: sortArg, where = {} },
 ) {
-  const globalConfig = this.payload.globals.config.find(({ slug }) => slug === global)
-  const Model = this.versions[global]
+  const globalConfig = this.payload.globals.config.find((each) => slug === each.slug)
+
+  if (!globalConfig) {
+    throw new APIError('')
+  }
+
+  const Model = this.versions[slug]
+
+  if (!Model) {
+    throw new APIError('')
+  }
+
   const versionFields = buildVersionGlobalFields(this.payload.config, globalConfig, true)
+
+  if (!globalConfig) {
+    throw new APIError(`Could not find global with slug ${slug}`)
+  }
 
   const session = await getSession(this, req)
   const options: QueryOptions = {
@@ -88,10 +102,11 @@ export const findGlobalVersions: FindGlobalVersions = async function findGlobalV
     }
   }
 
-  if (limit >= 0) {
+  if (limit && limit >= 0) {
     paginationOptions.limit = limit
     // limit must also be set here, it's ignored when pagination is false
-    paginationOptions.options.limit = limit
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    paginationOptions.options!.limit = limit
 
     // Disable pagination if limit is 0
     if (limit === 0) {

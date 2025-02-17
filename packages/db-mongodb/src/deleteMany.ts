@@ -1,5 +1,6 @@
 import type { DeleteOptions } from 'mongodb'
-import type { DeleteMany } from 'payload'
+
+import { APIError, type DeleteMany } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -11,6 +12,11 @@ export const deleteMany: DeleteMany = async function deleteMany(
   { collection, req, where },
 ) {
   const Model = this.collections[collection]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection ${collection} Mongoose model`)
+  }
+
   const options: DeleteOptions = {
     session: await getSession(this, req),
   }

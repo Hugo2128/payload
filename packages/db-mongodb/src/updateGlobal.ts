@@ -1,5 +1,6 @@
 import type { QueryOptions } from 'mongoose'
-import type { UpdateGlobal } from 'payload'
+
+import { APIError, type UpdateGlobal } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -12,7 +13,16 @@ export const updateGlobal: UpdateGlobal = async function updateGlobal(
   { slug, data, options: optionsArgs = {}, req, select },
 ) {
   const Model = this.globals
-  const fields = this.payload.config.globals.find((global) => global.slug === slug).fields
+
+  const globalConfig = this.payload.config.globals.find(
+    (globalConfig) => globalConfig.slug === slug,
+  )
+
+  if (!globalConfig) {
+    throw new APIError(`Could not find global with slug ${slug}`)
+  }
+
+  const fields = globalConfig.fields
 
   const options: QueryOptions = {
     ...optionsArgs,
@@ -20,7 +30,7 @@ export const updateGlobal: UpdateGlobal = async function updateGlobal(
     new: true,
     projection: buildProjectionFromSelect({
       adapter: this,
-      fields: this.payload.config.globals.find((global) => global.slug === slug).flattenedFields,
+      fields: globalConfig.flattenedFields,
       select,
     }),
     session: await getSession(this, req),

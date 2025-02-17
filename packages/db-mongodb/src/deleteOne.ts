@@ -1,5 +1,6 @@
 import type { QueryOptions } from 'mongoose'
-import type { DeleteOne } from 'payload'
+
+import { APIError, type DeleteOne } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -10,13 +11,24 @@ import { transform } from './utilities/transform.js'
 
 export const deleteOne: DeleteOne = async function deleteOne(
   this: MongooseAdapter,
-  { collection, req, select, where },
+  { collection: collectionSlug, req, select, where },
 ) {
-  const Model = this.collections[collection]
+  const Model = this.collections[collectionSlug]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection ${collectionSlug} Mongoose model`)
+  }
+
+  const collection = this.payload.collections[collectionSlug]
+
+  if (!collection) {
+    throw new APIError(`Could not find collection ${collectionSlug}`)
+  }
+
   const options: QueryOptions = {
     projection: buildProjectionFromSelect({
       adapter: this,
-      fields: this.payload.collections[collection].config.flattenedFields,
+      fields: collection.config.flattenedFields,
       select,
     }),
     session: await getSession(this, req),
@@ -24,8 +36,8 @@ export const deleteOne: DeleteOne = async function deleteOne(
 
   const query = await buildQuery({
     adapter: this,
-    collectionSlug: collection,
-    fields: this.payload.collections[collection].config.flattenedFields,
+    collectionSlug,
+    fields: collection.config.flattenedFields,
     where,
   })
 
@@ -38,7 +50,7 @@ export const deleteOne: DeleteOne = async function deleteOne(
   transform({
     adapter: this,
     data: doc,
-    fields: this.payload.collections[collection].config.fields,
+    fields: collection.config.fields,
     operation: 'read',
   })
 

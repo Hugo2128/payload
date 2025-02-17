@@ -1,7 +1,7 @@
 import type { CountOptions } from 'mongodb'
 import type { CountVersions } from 'payload'
 
-import { buildVersionCollectionFields, flattenWhereToOperators } from 'payload'
+import { APIError, buildVersionCollectionFields, flattenWhereToOperators } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -10,9 +10,20 @@ import { getSession } from './utilities/getSession.js'
 
 export const countVersions: CountVersions = async function countVersions(
   this: MongooseAdapter,
-  { collection, locale, req, where },
+  { collection: collectionSlug, locale, req, where = {} },
 ) {
-  const Model = this.versions[collection]
+  const Model = this.versions[collectionSlug]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection ${collectionSlug} version Mongoose model`)
+  }
+
+  const collection = this.payload.collections[collectionSlug]
+
+  if (!collection) {
+    throw new APIError('')
+  }
+
   const options: CountOptions = {
     session: await getSession(this, req),
   }
@@ -26,11 +37,7 @@ export const countVersions: CountVersions = async function countVersions(
 
   const query = await buildQuery({
     adapter: this,
-    fields: buildVersionCollectionFields(
-      this.payload.config,
-      this.payload.collections[collection].config,
-      true,
-    ),
+    fields: buildVersionCollectionFields(this.payload.config, collection.config, true),
     locale,
     where,
   })

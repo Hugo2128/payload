@@ -1,7 +1,12 @@
 import type { PaginateOptions, QueryOptions } from 'mongoose'
 import type { QueryDrafts } from 'payload'
 
-import { buildVersionCollectionFields, combineQueries, flattenWhereToOperators } from 'payload'
+import {
+  APIError,
+  buildVersionCollectionFields,
+  combineQueries,
+  flattenWhereToOperators,
+} from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -14,10 +19,32 @@ import { transform } from './utilities/transform.js'
 
 export const queryDrafts: QueryDrafts = async function queryDrafts(
   this: MongooseAdapter,
-  { collection, joins, limit, locale, page, pagination, req, select, sort: sortArg, where },
+  {
+    collection: collectionSlug,
+    joins,
+    limit,
+    locale,
+    page,
+    pagination,
+    req,
+    select,
+    sort: sortArg,
+    where = {},
+  },
 ) {
-  const VersionModel = this.versions[collection]
-  const collectionConfig = this.payload.collections[collection].config
+  const VersionModel = this.versions[collectionSlug]
+
+  if (!VersionModel) {
+    throw new APIError(`Could not find collection ${collectionSlug} version Mongoose model`)
+  }
+
+  const collection = this.payload.collections[collectionSlug]
+
+  if (!collection) {
+    throw new APIError(`Could not find collection ${collectionSlug}`)
+  }
+
+  const collectionConfig = collection.config
   const options: QueryOptions = {
     session: await getSession(this, req),
   }
@@ -95,17 +122,18 @@ export const queryDrafts: QueryDrafts = async function queryDrafts(
     }
   }
 
-  if (limit > 0) {
+  if (limit && limit > 0) {
     paginationOptions.limit = limit
     // limit must also be set here, it's ignored when pagination is false
-    paginationOptions.options.limit = limit
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    paginationOptions.options!.limit = limit
   }
 
   let result
 
   const aggregate = await buildJoinAggregation({
     adapter: this,
-    collection,
+    collection: collectionSlug,
     collectionConfig,
     joins,
     locale,

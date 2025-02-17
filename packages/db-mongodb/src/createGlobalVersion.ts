@@ -1,6 +1,5 @@
-import type { CreateOptions } from 'mongoose'
-
 import { buildVersionGlobalFields, type CreateGlobalVersion } from 'payload'
+import { APIError } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -22,7 +21,18 @@ export const createGlobalVersion: CreateGlobalVersion = async function createGlo
   },
 ) {
   const VersionModel = this.versions[globalSlug]
-  const options: CreateOptions = {
+
+  if (!VersionModel) {
+    throw new APIError(`Could not find global ${globalSlug} version Mongoose model`)
+  }
+
+  const globalConfig = this.payload.config.globals.find((global) => global.slug === globalSlug)
+
+  if (!globalConfig) {
+    throw new APIError(`Could not find global with slug ${globalSlug}`)
+  }
+
+  const options = {
     session: await getSession(this, req),
   }
 
@@ -37,10 +47,7 @@ export const createGlobalVersion: CreateGlobalVersion = async function createGlo
     version: versionData,
   }
 
-  const fields = buildVersionGlobalFields(
-    this.payload.config,
-    this.payload.config.globals.find((global) => global.slug === globalSlug),
-  )
+  const fields = buildVersionGlobalFields(this.payload.config, globalConfig)
 
   transform({
     adapter: this,

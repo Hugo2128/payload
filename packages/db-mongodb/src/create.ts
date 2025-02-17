@@ -1,5 +1,6 @@
 import type { CreateOptions } from 'mongoose'
-import type { Create, Document } from 'payload'
+
+import { APIError, type Create } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -9,9 +10,20 @@ import { transform } from './utilities/transform.js'
 
 export const create: Create = async function create(
   this: MongooseAdapter,
-  { collection, data, req },
+  { collection: collectionSlug, data, req },
 ) {
-  const Model = this.collections[collection]
+  const Model = this.collections[collectionSlug]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection ${collectionSlug} Mongoose model`)
+  }
+
+  const collection = this.payload.collections[collectionSlug]
+
+  if (!collection) {
+    throw new APIError('')
+  }
+
   const options: CreateOptions = {
     session: await getSession(this, req),
   }
@@ -21,18 +33,18 @@ export const create: Create = async function create(
   transform({
     adapter: this,
     data,
-    fields: this.payload.collections[collection].config.fields,
+    fields: collection.config.fields,
     operation: 'write',
   })
 
-  if (this.payload.collections[collection].customIDType) {
+  if (collection.customIDType) {
     data._id = data.id
   }
 
   try {
     ;[doc] = await Model.create([data], options)
   } catch (error) {
-    handleError({ collection, error, req })
+    handleError({ collection: collectionSlug, error, req })
   }
 
   doc = doc.toObject()
@@ -40,7 +52,7 @@ export const create: Create = async function create(
   transform({
     adapter: this,
     data: doc,
-    fields: this.payload.collections[collection].config.fields,
+    fields: collection.config.fields,
     operation: 'read',
   })
 

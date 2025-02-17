@@ -1,5 +1,6 @@
 import type { QueryOptions } from 'mongoose'
-import type { UpdateOne } from 'payload'
+
+import { APIError, type UpdateOne } from 'payload'
 
 import type { MongooseAdapter } from './index.js'
 
@@ -11,18 +12,38 @@ import { transform } from './utilities/transform.js'
 
 export const updateOne: UpdateOne = async function updateOne(
   this: MongooseAdapter,
-  { id, collection, data, locale, options: optionsArgs = {}, req, select, where: whereArg },
+  {
+    id,
+    collection: collectionSlug,
+    data,
+    locale,
+    options: optionsArgs = {},
+    req,
+    select,
+    where: whereArg = {},
+  },
 ) {
   const where = id ? { id: { equals: id } } : whereArg
-  const Model = this.collections[collection]
-  const fields = this.payload.collections[collection].config.fields
+  const Model = this.collections[collectionSlug]
+
+  if (!Model) {
+    throw new APIError(`Could not find collection ${collectionSlug} Mongoose model`)
+  }
+
+  const collection = this.payload.collections[collectionSlug]
+
+  if (!collection) {
+    throw new APIError(`Could not find collection ${collectionSlug}`)
+  }
+
+  const fields = collection.config.fields
   const options: QueryOptions = {
     ...optionsArgs,
     lean: true,
     new: true,
     projection: buildProjectionFromSelect({
       adapter: this,
-      fields: this.payload.collections[collection].config.flattenedFields,
+      fields: collection.config.flattenedFields,
       select,
     }),
     session: await getSession(this, req),
@@ -43,7 +64,7 @@ export const updateOne: UpdateOne = async function updateOne(
   try {
     result = await Model.findOneAndUpdate(query, data, options)
   } catch (error) {
-    handleError({ collection, error, req })
+    handleError({ collection: collectionSlug, error, req })
   }
 
   if (!result) {
